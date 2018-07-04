@@ -31,23 +31,19 @@ namespace DeltaX.Commerce.Catalog
             _catalogContentType = contentTypeRepository.Load(typeof(CatalogContent));
         }
 
-        public IDictionary<ContentReference, ContentType> ResolveContentTypes(
+        public IEnumerable<ResolvedContentType> ResolveContentTypes(
             IEnumerable<ContentReference> contentLinks)
         {
             var contentReferences = contentLinks as ContentReference[] ?? contentLinks.ToArray();
 
-            var result = new Dictionary<ContentReference, ContentType>();
+            var result = new List<ResolvedContentType>();
 
-            var catalogContentLinks =
-                contentReferences.Where(l => _referenceConverter.GetContentType(l) == CatalogContentType.Catalog);
-            foreach (var catalogContentLink in catalogContentLinks)
-            {
-                result.Add(catalogContentLink, _catalogContentType);
-            }
+            result.AddRange(contentReferences
+                            .Where(l => _referenceConverter.GetContentType(l) == CatalogContentType.Catalog)
+                            .Select(l => new ResolvedContentType(l, _catalogContentType)));
 
             var nodeContentLinks =
                 contentReferences.Where(l => _referenceConverter.GetContentType(l) == CatalogContentType.CatalogNode);
-
             var nodeIds = nodeContentLinks.Select(l => _referenceConverter.GetObjectId(l));
 
             var entryLinks =
@@ -56,15 +52,8 @@ namespace DeltaX.Commerce.Catalog
 
             var ds = LoadMetaClassNames(entryIds, nodeIds);
 
-            foreach (var keyPair in ResolveContentTypes(ds.Tables[0], CatalogContentType.CatalogEntry))
-            {
-                result.Add(keyPair.Key, keyPair.Value);
-            }
-
-            foreach (var keyPair in ResolveContentTypes(ds.Tables[1], CatalogContentType.CatalogNode))
-            {
-                result.Add(keyPair.Key, keyPair.Value);
-            }
+            result.AddRange(ResolveContentTypes(ds.Tables[0], CatalogContentType.CatalogEntry));
+            result.AddRange(ResolveContentTypes(ds.Tables[1], CatalogContentType.CatalogNode));
 
             return result;
         }
@@ -81,7 +70,7 @@ namespace DeltaX.Commerce.Catalog
             return ds;
         }
 
-        private IEnumerable<KeyValuePair<ContentReference, ContentType>> ResolveContentTypes(DataTable table, CatalogContentType contentType)
+        private IEnumerable<ResolvedContentType> ResolveContentTypes(DataTable table, CatalogContentType contentType)
         {
             foreach (DataRow row in table.Rows)
             {
@@ -90,7 +79,7 @@ namespace DeltaX.Commerce.Catalog
                 var contentLink = _referenceConverter.GetContentLink(id, contentType, 0);
                 if (_metaClassContentTypeModelMap.TryGetValue(metaClassName, out var contentTypeModel))
                 {
-                    yield return new KeyValuePair<ContentReference, ContentType>(contentLink, contentTypeModel.ExistingContentType);
+                    yield return new ResolvedContentType(contentLink, contentTypeModel.ExistingContentType);
                 }
             }
         }

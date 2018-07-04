@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using EPiServer.Core;
 using EPiServer.DataAbstraction;
 using EPiServer.Framework.Cache;
@@ -29,24 +30,23 @@ namespace DeltaX.Commerce.Catalog
                     new[] { masterKey });
         }
 
-        public IDictionary<ContentReference, ContentType> ResolveContentTypes(
+        public IEnumerable<ResolvedContentType> ResolveContentTypes(
             IEnumerable<ContentReference> contentLinks)
         {
             var result = GetFromCache(contentLinks, out var notCachedLinks);
-            var internalResult = _internalResolver.ResolveContentTypes(notCachedLinks);
-
-            foreach (var keyPair in internalResult)
+            var internalResult = _internalResolver.ResolveContentTypes(notCachedLinks).ToList();
+            result.AddRange(internalResult);
+            foreach (var resolved in internalResult)
             {
-                result.Add(keyPair.Key, keyPair.Value);
-                _cache.Insert(GetCacheKey(keyPair.Key), keyPair.Value, _cacheEvictionPolicyFunc(keyPair.Key));
+                _cache.Insert(GetCacheKey(resolved.ContentReference), resolved.ContentType, _cacheEvictionPolicyFunc(resolved.ContentReference));
             }
 
             return result;
         }
 
-        private Dictionary<ContentReference, ContentType> GetFromCache(IEnumerable<ContentReference> contentLinks, out List<ContentReference> notCached)
+        private List<ResolvedContentType> GetFromCache(IEnumerable<ContentReference> contentLinks, out List<ContentReference> notCached)
         {
-            var result = new Dictionary<ContentReference, ContentType>();
+            var result = new List<ResolvedContentType>();
 
             var notCachedLinks = new List<ContentReference>();
 
@@ -55,7 +55,7 @@ namespace DeltaX.Commerce.Catalog
                 var cached = _cache.Get(GetCacheKey(contentLink)) as ContentType;
                 if (cached != null)
                 {
-                    result.Add(contentLink, cached);
+                    result.Add(new ResolvedContentType(contentLink, cached));
                 }
                 else
                 {
