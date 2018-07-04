@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -107,7 +107,7 @@ namespace DeltaX.Commerce.Catalog
                 new DataParameter("NodeIds", CreateLinkTable(nodeIds))
             };
             DataSet ds = DBHelper.ExecuteDataSet(MetaDataContext.Instance, CommandType.StoredProcedure,
-                "ecf_GetMetaClassNames", parameters).DataSet;
+                "GetMetaClassNames", parameters).DataSet;
             return ds;
         }
 
