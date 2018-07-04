@@ -7,7 +7,6 @@ using EPiServer.Commerce.Catalog.DataAnnotations;
 using EPiServer.Core;
 using EPiServer.DataAbstraction;
 using EPiServer.DataAbstraction.RuntimeModel;
-using EPiServer.Framework.Cache;
 using Mediachase.Commerce.Catalog;
 using Mediachase.Data.Provider;
 using Mediachase.MetaDataPlus;
@@ -19,67 +18,40 @@ namespace DeltaX.Commerce.Catalog
     {
         private readonly ReferenceConverter _referenceConverter;
         private readonly ContentTypeModelRepository _contentTypeModelRepository;
-        private readonly ISynchronizedObjectInstanceCache _cache;
-        private readonly IContentCacheKeyCreator _contentCacheKeyCreator;
-
-        private const string CachePrefix = "EP:ECF:ContentType:";
-        private readonly Func<ContentReference, CacheEvictionPolicy> _cacheEvictionPolicyFunc;
-
         private readonly ContentType _catalogContentType;
         private readonly Dictionary<string, ContentTypeModel> _metaClassContentTypeModelMap;
 
         public CatalogContentTypeResolver(ReferenceConverter referenceConverter,
             IContentTypeRepository contentTypeRepository,
-            ContentTypeModelRepository contentTypeModelRepository, ISynchronizedObjectInstanceCache cache, IContentCacheKeyCreator contentCacheKeyCreator)
+            ContentTypeModelRepository contentTypeModelRepository)
         {
             _referenceConverter = referenceConverter;
             _contentTypeModelRepository = contentTypeModelRepository;
-            _cache = cache;
-            _contentCacheKeyCreator = contentCacheKeyCreator;
             _metaClassContentTypeModelMap = PopulateMetadataMappings();
             _catalogContentType = contentTypeRepository.Load(typeof(CatalogContent));
-
-            var masterKey = CachePrefix + "*";
-            _cacheEvictionPolicyFunc = (contentLink) =>
-                new CacheEvictionPolicy(TimeSpan.FromMinutes(10),
-                    CacheTimeoutType.Sliding,
-                    new[] { _contentCacheKeyCreator.CreateCommonCacheKey(contentLink) },
-                    new[] { masterKey });
         }
 
         public IDictionary<ContentReference, ContentType> ResolveContentTypes(
             IEnumerable<ContentReference> contentLinks)
         {
-            var result = new Dictionary<ContentReference, ContentType>();
-            var catalogContentLinks =
-                contentLinks.Where(l => _referenceConverter.GetContentType(l) == CatalogContentType.Catalog);
+            var contentReferences = contentLinks as ContentReference[] ?? contentLinks.ToArray();
 
+            var result = new Dictionary<ContentReference, ContentType>();
+
+            var catalogContentLinks =
+                contentReferences.Where(l => _referenceConverter.GetContentType(l) == CatalogContentType.Catalog);
             foreach (var catalogContentLink in catalogContentLinks)
             {
                 result.Add(catalogContentLink, _catalogContentType);
             }
 
-            var notCachedLinks = new List<ContentReference>();
-
-            foreach (var contentLink in contentLinks)
-            {
-                var cached = _cache.Get(GetCacheKey(contentLink)) as ContentType;
-                if (cached != null)
-                {
-                    result.Add(contentLink, cached);
-                }
-                else
-                {
-                    notCachedLinks.Add(contentLink);
-                }
-            }
-
             var nodeContentLinks =
-                notCachedLinks.Where(l => _referenceConverter.GetContentType(l) == CatalogContentType.CatalogNode);
+                contentReferences.Where(l => _referenceConverter.GetContentType(l) == CatalogContentType.CatalogNode);
+
             var nodeIds = nodeContentLinks.Select(l => _referenceConverter.GetObjectId(l));
 
             var entryLinks =
-                notCachedLinks.Where(l => _referenceConverter.GetContentType(l) == CatalogContentType.CatalogEntry);
+                contentReferences.Where(l => _referenceConverter.GetContentType(l) == CatalogContentType.CatalogEntry);
             var entryIds = entryLinks.Select(l => _referenceConverter.GetObjectId(l));
 
             var ds = LoadMetaClassNames(entryIds, nodeIds);
@@ -87,13 +59,11 @@ namespace DeltaX.Commerce.Catalog
             foreach (var keyPair in ResolveContentTypes(ds.Tables[0], CatalogContentType.CatalogEntry))
             {
                 result.Add(keyPair.Key, keyPair.Value);
-                _cache.Insert(GetCacheKey(keyPair.Key), keyPair.Value, _cacheEvictionPolicyFunc(keyPair.Key));
             }
 
             foreach (var keyPair in ResolveContentTypes(ds.Tables[1], CatalogContentType.CatalogNode))
             {
                 result.Add(keyPair.Key, keyPair.Value);
-                _cache.Insert(GetCacheKey(keyPair.Key), keyPair.Value, _cacheEvictionPolicyFunc(keyPair.Key));
             }
 
             return result;
@@ -144,27 +114,20 @@ namespace DeltaX.Commerce.Catalog
 
             foreach (var contentTypeModel in _contentTypeModelRepository.List())
             {
-                var metaClassName = contentTypeModel.ModelType.Name;
-
                 if (!typeof(CatalogContentBase).IsAssignableFrom(contentTypeModel.ModelType))
                 {
                     continue;
                 }
 
                 if (contentTypeModel.Attributes.TryGetSingleAttribute(out CatalogContentTypeAttribute attribute)
-                    && !String.IsNullOrWhiteSpace(attribute.MetaClassName))
+                    && !string.IsNullOrWhiteSpace(attribute.MetaClassName))
                 {
-                    metaClassName = attribute.MetaClassName;
+                    var metaClassName = attribute.MetaClassName;
                     mappings.Add(metaClassName, contentTypeModel);
                 }
             }
 
             return mappings;
-        }
-
-        private string GetCacheKey(ContentReference contentLink)
-        {
-            return CachePrefix + contentLink.ID;
         }
     }
 }
