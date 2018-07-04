@@ -15,7 +15,7 @@ using Mediachase.MetaDataPlus.Common;
 
 namespace DeltaX.Commerce.Catalog
 {
-    public class CatalogContentTypeResolver
+    public class CatalogContentTypeResolver : ICatalogContentTypeResolver
     {
         private readonly ReferenceConverter _referenceConverter;
         private readonly ContentTypeModelRepository _contentTypeModelRepository;
@@ -41,10 +41,10 @@ namespace DeltaX.Commerce.Catalog
 
             var masterKey = CachePrefix + "*";
             _cacheEvictionPolicyFunc = (contentLink) =>
-                new CacheEvictionPolicy(TimeSpan.FromMinutes(10), 
-                    CacheTimeoutType.Sliding, 
-                    new [] { _contentCacheKeyCreator.CreateCommonCacheKey(contentLink)}, 
-                    new [] { masterKey });
+                new CacheEvictionPolicy(TimeSpan.FromMinutes(10),
+                    CacheTimeoutType.Sliding,
+                    new[] { _contentCacheKeyCreator.CreateCommonCacheKey(contentLink) },
+                    new[] { masterKey });
         }
 
         public IDictionary<ContentReference, ContentType> ResolveContentTypes(
