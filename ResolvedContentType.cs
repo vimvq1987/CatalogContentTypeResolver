@@ -12,5 +12,10 @@ namespace DeltaX.Commerce.Catalog
         }
         public ContentReference ContentReference { get; set; }
         public ContentType ContentType { get; set; }
+
+        public virtual bool IsOfType<T>()
+        {
+            return ContentType.ModelType == typeof(T);
+        }
     }
 }
