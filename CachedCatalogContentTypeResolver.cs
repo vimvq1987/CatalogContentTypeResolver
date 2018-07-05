@@ -4,6 +4,7 @@ using System.Linq;
 using EPiServer.Core;
 using EPiServer.DataAbstraction;
 using EPiServer.Framework.Cache;
+using Mediachase.Commerce.Catalog;
 
 namespace DeltaX.Commerce.Catalog
 {
@@ -14,10 +15,12 @@ namespace DeltaX.Commerce.Catalog
 
         private const string CachePrefix = "EP:ECF:ContentType:";
         private readonly Func<ContentReference, CacheEvictionPolicy> _cacheEvictionPolicyFunc;
+        private readonly ReferenceConverter _referenceConverter;
 
         public CachedCatalogContentTypeResolver(ICatalogContentTypeResolver internalResolver,
                                                 ISynchronizedObjectInstanceCache cache,
-                                                IContentCacheKeyCreator contentCacheKeyCreator)
+                                                IContentCacheKeyCreator contentCacheKeyCreator,
+                                                ReferenceConverter referenceConverter)
         {
             _internalResolver = internalResolver;
             _cache = cache;
@@ -28,6 +31,20 @@ namespace DeltaX.Commerce.Catalog
                     CacheTimeoutType.Sliding,
                     new[] { contentCacheKeyCreator.CreateCommonCacheKey(contentLink) },
                     new[] { masterKey });
+
+            _referenceConverter = referenceConverter;
+        }
+
+        public IEnumerable<ResolvedContentType> ResolveContentTypesFromCodes(IEnumerable<string> codes)
+        {
+            var references = _referenceConverter.GetContentLinks(codes);
+            return ResolveContentTypes(references.Values);
+        }
+
+        public IEnumerable<ResolvedContentType> ResolveContentTypesFromCodes(IEnumerable<string> codes, CatalogContentType catalogContentType)
+        {
+            var references = _referenceConverter.GetContentLinks(codes, catalogContentType);
+            return ResolveContentTypes(references.Values);
         }
 
         public IEnumerable<ResolvedContentType> ResolveContentTypes(

@@ -31,6 +31,19 @@ namespace DeltaX.Commerce.Catalog
             _catalogContentType = contentTypeRepository.Load(typeof(CatalogContent));
         }
 
+        public IEnumerable<ResolvedContentType> ResolveContentTypesFromCodes(IEnumerable<string> codes)
+        {
+            var references = _referenceConverter.GetContentLinks(codes);
+            return ResolveContentTypes(references.Values);
+        }
+
+        public IEnumerable<ResolvedContentType> ResolveContentTypesFromCodes(IEnumerable<string> codes,
+            CatalogContentType catalogContentType)
+        {
+            var references = _referenceConverter.GetContentLinks(codes, catalogContentType);
+            return ResolveContentTypes(references.Values);
+        }
+
         public IEnumerable<ResolvedContentType> ResolveContentTypes(
             IEnumerable<ContentReference> contentLinks)
         {
@@ -111,8 +124,7 @@ namespace DeltaX.Commerce.Catalog
                 if (contentTypeModel.Attributes.TryGetSingleAttribute(out CatalogContentTypeAttribute attribute)
                     && !string.IsNullOrWhiteSpace(attribute.MetaClassName))
                 {
-                    var metaClassName = attribute.MetaClassName;
-                    mappings.Add(metaClassName, contentTypeModel);
+                    mappings.Add(attribute.MetaClassName, contentTypeModel);
                 }
             }
 
